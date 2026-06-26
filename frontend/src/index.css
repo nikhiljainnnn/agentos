@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer components {
+  /* Prose overrides for dark theme markdown */
+  .prose-invert code {
+    @apply bg-slate-900 text-indigo-300 px-1.5 py-0.5 rounded text-[0.85em] font-mono;
+  }
+  .prose-invert pre {
+    @apply bg-slate-900 border border-slate-700 rounded-xl;
+  }
+  .prose-invert pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-invert a {
+    @apply text-indigo-400 hover:text-indigo-300 transition-colors;
+  }
+  .prose-invert blockquote {
+    @apply border-l-indigo-500 text-slate-400;
+  }
+}
+
+/* Loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
