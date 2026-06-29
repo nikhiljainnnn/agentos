@@ -4,43 +4,11 @@ Requires running Postgres and Redis.
 Run with: pytest tests/integration/ -v
 """
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 
-from gateway.main import app
-from gateway.database import init_db
-
-
-@pytest.fixture(scope="session", autouse=True)
-async def setup_db():
-    await init_db()
-
-
-@pytest.fixture
-async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
-        yield c
-
-
-@pytest.fixture
-async def auth_client(client):
-    """Returns a client with auth token."""
-    # Register
-    await client.post("/api/auth/register", json={
-        "username": "testuser_integration",
-        "email": "test@integration.com",
-        "password": "testpass123",
-    })
-    # Login
-    resp = await client.post("/api/auth/login", json={
-        "username": "testuser_integration",
-        "password": "testpass123",
-    })
-    token = resp.json()["access_token"]
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+# DB setup and client fixtures are provided by conftest.py
+# (setup_test_db, client, auth_headers, authenticated_client)
 
 
 # ─── Auth Tests ───────────────────────────────────────────────────────────────
@@ -76,8 +44,8 @@ async def test_register_duplicate(client):
 # ─── Session Tests ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_session(auth_client):
-    resp = await auth_client.post("/api/sessions/", json={"title": "Test Session"})
+async def test_create_session(authenticated_client):
+    resp = await authenticated_client.post("/api/sessions/", json={"title": "Test Session"})
     assert resp.status_code == 201
     data = resp.json()
     assert data["title"] == "Test Session"
@@ -85,10 +53,10 @@ async def test_create_session(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_list_sessions(auth_client):
-    await auth_client.post("/api/sessions/", json={"title": "Session A"})
-    await auth_client.post("/api/sessions/", json={"title": "Session B"})
-    resp = await auth_client.get("/api/sessions/")
+async def test_list_sessions(authenticated_client):
+    await authenticated_client.post("/api/sessions/", json={"title": "Session A"})
+    await authenticated_client.post("/api/sessions/", json={"title": "Session B"})
+    resp = await authenticated_client.get("/api/sessions/")
     assert resp.status_code == 200
     assert len(resp.json()) >= 2
 
@@ -102,9 +70,9 @@ async def test_unauthorized_access(client):
 # ─── Message Tests ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_send_message(auth_client):
+async def test_send_message(authenticated_client):
     # Create session
-    sess_resp = await auth_client.post("/api/sessions/", json={"title": "Message Test"})
+    sess_resp = await authenticated_client.post("/api/sessions/", json={"title": "Message Test"})
     session_id = sess_resp.json()["id"]
 
     # Mock orchestrator
@@ -117,7 +85,7 @@ async def test_send_message(auth_client):
     }
 
     with patch("gateway.routers.messages.run_orchestrator", new=AsyncMock(return_value=mock_state)):
-        resp = await auth_client.post("/api/messages/", json={
+        resp = await authenticated_client.post("/api/messages/", json={
             "content": "What is AI?",
             "session_id": session_id,
             "enable_rag": False,
