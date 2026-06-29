@@ -1,8 +1,7 @@
 import uuid
-from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -19,7 +18,6 @@ router = APIRouter()
 @router.post("/", response_model=MessageResponse)
 async def send_message(
     payload: MessageCreate,
-    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -91,6 +89,11 @@ async def send_message(
         tokens_used=sum(s.tokens_used for s in steps),
     )
     db.add(assistant_msg)
+    # flush() sends the INSERT; refresh() pulls back server-generated values
+    # (id via uuid_generate_v4(), created_at via now()).
+    # Without these two calls assistant_msg.id and created_at stay None.
+    await db.flush()
+    await db.refresh(assistant_msg)
 
     # Record prometheus metrics
     record_request(
@@ -101,11 +104,6 @@ async def send_message(
     if eval_m:
         record_eval(eval_m)
 
-    # Set user-id header for rate limiter
-    request.headers.__dict__["_list"].append(
-        (b"x-user-id", str(current_user.id).encode())
-    )
-
     return MessageResponse(
         id=assistant_msg.id,
         session_id=session.id,
@@ -115,7 +113,7 @@ async def send_message(
         eval_metrics=eval_metrics,
         provider_used=state.get("provider_used"),
         total_latency_ms=state.get("total_latency_ms", 0),
-        created_at=assistant_msg.created_at or datetime.utcnow(),
+        created_at=assistant_msg.created_at,
     )
 
 
