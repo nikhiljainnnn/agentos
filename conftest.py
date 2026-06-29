@@ -3,6 +3,7 @@ Shared pytest fixtures for all test suites.
 """
 import os
 import asyncio
+import uuid
 import pytest
 import pytest_asyncio
 from typing import AsyncGenerator
@@ -21,6 +22,7 @@ os.environ.setdefault("LANGCHAIN_TRACING_V2", "false")
 os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from gateway.main import app
@@ -31,7 +33,7 @@ from gateway.models import Base
 # ─── Database engine for tests ────────────────────────────────────────────────
 TEST_DB_URL = os.environ["DATABASE_URL"]
 
-test_engine = create_async_engine(TEST_DB_URL, echo=False)
+test_engine = create_async_engine(TEST_DB_URL, echo=False, poolclass=NullPool)
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
 
 
@@ -78,14 +80,17 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient) -> dict:
-    """Register + login, return auth headers."""
+    """Register + login, return auth headers with a unique user per test."""
+    uid = uuid.uuid4().hex[:8]
+    username = f"fixtureuser_{uid}"
+    
     await client.post("/api/auth/register", json={
-        "username": "fixtureuser",
-        "email": "fixture@test.com",
+        "username": username,
+        "email": f"{username}@test.com",
         "password": "fixture123",
     })
     resp = await client.post("/api/auth/login", json={
-        "username": "fixtureuser",
+        "username": username,
         "password": "fixture123",
     })
     token = resp.json()["access_token"]
