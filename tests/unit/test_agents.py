@@ -81,14 +81,26 @@ class TestLLMRouter:
         router_a = LLMRouter(preferred=Provider.AZURE)
         router_b = LLMRouter(preferred=Provider.ANTHROPIC)
 
-        fake = ("ok", Provider.AZURE, 100.0, 20)
+        # Build minimal fake ModelResponse objects so _call_provider can parse them
+        def _fake_response(provider_val, content):
+            resp = MagicMock()
+            resp.choices = [MagicMock()]
+            resp.choices[0].message.content = content
+            resp.usage.total_tokens = 20
+            return resp
 
-        with patch.object(router_a, "_call_provider", new=AsyncMock(return_value=fake)):
-            await router_a.chat(messages=[{"role": "user", "content": "a"}])
+        # Patch litellm.acompletion so _call_provider runs fully (including _record_stat)
+        with patch("agents.llm_router.acompletion", new=AsyncMock(
+            return_value=_fake_response(Provider.AZURE, "azure ok")
+        )):
+            with patch("agents.llm_router.publish_event", new=AsyncMock()):
+                await router_a.chat(messages=[{"role": "user", "content": "a"}])
 
-        fake_b = ("ok", Provider.ANTHROPIC, 150.0, 30)
-        with patch.object(router_b, "_call_provider", new=AsyncMock(return_value=fake_b)):
-            await router_b.chat(messages=[{"role": "user", "content": "b"}])
+        with patch("agents.llm_router.acompletion", new=AsyncMock(
+            return_value=_fake_response(Provider.ANTHROPIC, "anthropic ok")
+        )):
+            with patch("agents.llm_router.publish_event", new=AsyncMock()):
+                await router_b.chat(messages=[{"role": "user", "content": "b"}])
 
         stats = get_global_stats()
         # Both calls recorded globally

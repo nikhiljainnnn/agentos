@@ -130,7 +130,8 @@ class CriticAgent:
         except json.JSONDecodeError:
             # Fallback: extract numbers with regex
             def extract(key: str) -> float:
-                m = re.search(rf'"{key}"\s*:\s*([0-9.]+)', text)
+                # Match both quoted ("faithfulness": 0.8) and bare (faithfulness: 0.8) keys
+                m = re.search(rf'"?{key}"?\s*:\s*([0-9.]+)', text)
                 return float(m.group(1)) if m else 0.5
 
             return {
