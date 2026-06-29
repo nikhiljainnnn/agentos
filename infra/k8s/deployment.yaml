@@ -26,10 +26,11 @@ metadata:
   namespace: agentos
 type: Opaque
 stringData:
+  POSTGRES_PASSWORD: "secret"
   DATABASE_URL: "postgresql+asyncpg://agentos:secret@postgres-service:5432/agentos"
-  SECRET_KEY: "change-me-in-production-32-chars-min"
+  SECRET_KEY: "super-secret-change-in-prod-min-32-chars"
   AZURE_OPENAI_API_KEY: ""
-  ANTHROPIC_API_KEY: ""
+  ANTHROPIC_API_KEY: ""  # Inject via .env or CI/CD secret — never hardcode here
   GOOGLE_API_KEY: ""
   TAVILY_API_KEY: ""
   LANGCHAIN_API_KEY: ""
@@ -54,7 +55,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: agentos-gateway:latest
+          image: localhost:5001/agentos-gateway:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

@@ -80,3 +80,33 @@ chroma_data/
 *.key
 *.crt
 secrets/
+
+frontend_redesign/
+
+# uv (replaces Poetry — lock file is committed for reproducibility)
+# Uncomment below only if you want to ignore it:
+# uv.lock
+
+# Generated requirements file (uv compile output — do not commit)
+requirements.txt
+
+# Frontend env files (keep .env.example but ignore actual secrets)
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Pytest / coverage output
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# mypy / ruff cache
+.mypy_cache/
+.ruff_cache/
+

@@ -19,18 +19,37 @@ settings = get_settings()
 router = APIRouter()
 
 
+# Maximum concurrent WebSocket connections per user to prevent abuse.
+MAX_CONNECTIONS_PER_USER = 3
+
+
 class ConnectionManager:
     def __init__(self):
-        self.active: Dict[str, WebSocket] = {}  # session_id → websocket
+        self.active: Dict[str, WebSocket] = {}      # session_id → websocket
+        self._user_conn_count: Dict[str, int] = {}  # user_id → active conn count
 
-    async def connect(self, session_id: str, websocket: WebSocket):
+    def can_connect(self, user_id: str) -> bool:
+        """Returns True if the user is below the concurrent connection limit."""
+        return self._user_conn_count.get(user_id, 0) < MAX_CONNECTIONS_PER_USER
+
+    async def connect(self, session_id: str, user_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active[session_id] = websocket
-        logger.info("ws_connected", session_id=session_id)
+        self._user_conn_count[user_id] = self._user_conn_count.get(user_id, 0) + 1
+        logger.info(
+            "ws_connected",
+            session_id=session_id,
+            user_id=user_id,
+            user_connections=self._user_conn_count[user_id],
+        )
 
-    def disconnect(self, session_id: str):
+    def disconnect(self, session_id: str, user_id: str | None = None):
         self.active.pop(session_id, None)
-        logger.info("ws_disconnected", session_id=session_id)
+        if user_id and user_id in self._user_conn_count:
+            self._user_conn_count[user_id] = max(
+                0, self._user_conn_count[user_id] - 1
+            )
+        logger.info("ws_disconnected", session_id=session_id, user_id=user_id)
 
     async def send(self, session_id: str, event: WSEvent):
         ws = self.active.get(session_id)
@@ -81,7 +100,16 @@ async def websocket_chat(
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
-    await manager.connect(session_id, websocket)
+    # Per-user concurrent connection rate limit
+    if not manager.can_connect(user_id):
+        await websocket.close(
+            code=4029,
+            reason=f"Too many concurrent connections (max {MAX_CONNECTIONS_PER_USER})",
+        )
+        logger.warning("ws_rate_limited", user_id=user_id)
+        return
+
+    await manager.connect(session_id, user_id, websocket)
 
     try:
         # Send start event
@@ -155,7 +183,7 @@ async def websocket_chat(
             ),
         )
     finally:
-        manager.disconnect(session_id)
+        manager.disconnect(session_id, user_id)
 
 
 def get_manager() -> ConnectionManager:

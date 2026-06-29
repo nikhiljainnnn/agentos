@@ -1,11 +1,3 @@
-# ─── Build stage ──────────────────────────────────────────────────────────────
-FROM python:3.11-slim AS builder
-
-WORKDIR /app
-RUN pip install poetry==1.8.0
-COPY pyproject.toml poetry.lock* ./
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
-
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
@@ -16,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps
-COPY --from=builder /app/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Python deps (using uv for lightning fast resolution)
+COPY pyproject.toml ./
+RUN pip install uv && uv pip compile pyproject.toml -o requirements.txt && uv pip install --system -r requirements.txt
 
 # App code
 COPY gateway/ ./gateway/
